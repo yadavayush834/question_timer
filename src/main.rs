@@ -81,6 +81,7 @@ const PAGE: &str = r##"<!doctype html>
 
     .timer {
       margin: 0;
+      min-width: 8ch;
       color: var(--accent);
       font-family: "Courier New", monospace;
       font-size: clamp(3.2rem, 14vw, 6.8rem);
@@ -105,6 +106,7 @@ const PAGE: &str = r##"<!doctype html>
 
     .count {
       margin: 0;
+      min-width: 2ch;
       color: var(--text);
       font-family: "Courier New", monospace;
       font-size: clamp(2.8rem, 10vw, 4.5rem);
