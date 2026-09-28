@@ -7,6 +7,7 @@ const PAGE: &str = r##"<!doctype html>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#111412">
+  <meta name="description" content="A minimal persistent timer for tracking completed questions.">
   <title>Question Timer</title>
   <style>
     :root {
