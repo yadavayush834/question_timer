@@ -1,0 +1,15 @@
+# Question Timer
+
+A minimal Rust website for tracking elapsed study time and completed questions.
+
+## Run
+
+Install Rust, then from this folder run:
+
+```text
+cargo run
+```
+
+Open `http://127.0.0.1:3000` in a browser.
+
+The timer and question count are stored in browser `localStorage`, so refreshing the page keeps the session. `Reset timer` only resets elapsed time; the question count remains intact.
