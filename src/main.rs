@@ -176,11 +176,11 @@ const PAGE: &str = r##"<!doctype html>
           <p class="label">Questions completed</p>
           <p class="count" id="count" aria-live="polite">0</p>
         </div>
-        <button id="increment" type="button">Add question</button>
+        <button id="increment" type="button" aria-label="Add one completed question">Add question</button>
       </div>
 
       <div class="footer">
-        <button class="reset" id="reset" type="button">Reset timer</button>
+        <button class="reset" id="reset" type="button" aria-label="Reset elapsed timer">Reset timer</button>
       </div>
     </section>
   </main>
