@@ -168,13 +168,13 @@ const PAGE: &str = r##"<!doctype html>
 
     <section class="panel" aria-labelledby="timer-label">
       <p class="label" id="timer-label">Elapsed time</p>
-      <p class="timer" id="timer" aria-live="polite">00:00:00</p>
+      <p class="timer" id="timer" aria-live="polite" aria-atomic="true">00:00:00</p>
       <div class="timer-rule" aria-hidden="true"></div>
 
       <div class="count-row">
         <div>
           <p class="label">Questions completed</p>
-          <p class="count" id="count" aria-live="polite">0</p>
+          <p class="count" id="count" aria-live="polite" aria-atomic="true">0</p>
         </div>
         <button id="increment" type="button" aria-label="Add one completed question">Add question</button>
       </div>
