@@ -244,6 +244,8 @@ const PAGE: &str = r##"<!doctype html>
         save();
       });
 
+      window.addEventListener("beforeunload", save);
+
       render();
       window.setInterval(() => {
         const now = Date.now();
