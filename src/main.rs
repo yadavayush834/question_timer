@@ -1,6 +1,21 @@
 //! question timer — pure-Rust terminal app.
 //!
 //! No HTML, no CSS, no JS, no web server, no external crates.
+//! Only `std`: a live timer + question counter in your terminal.
+//!
+//! Controls (type + Enter):
+//!   <enter>  +1 question (just smash Enter per question)
+//!   a        +1 question (same as Enter)
+//!   u        undo (-1, min 0)
+//!   p        pause / resume
+//!   r        reset timer (keeps count)
+//!   c        reset count (keeps timer)
+//!   x        reset everything
+//!   q        save + quit
+//!
+//! State persists on disk, so quitting and restarting resumes the
+//! session — the terminal equivalent of the old localStorage behavior.
+//! While running, wall-clock time between sessions counts too.
 
 use std::fs;
 use std::io::{self, BufRead, Write};
@@ -66,7 +81,8 @@ fn load() -> State {
         count: 0,
         running: true,
     };
-    let raw = fs::read_to_string(state_path()).unwrap_or_default();
+    let path = state_path();
+    let raw = fs::read_to_string(&path).unwrap_or_default();
     let mut it = raw.split_whitespace();
     let elapsed: u64 = it.next().and_then(|s| s.parse().ok()).unwrap_or(0);
     let count: u64 = it.next().and_then(|s| s.parse().ok()).unwrap_or(0);
@@ -121,11 +137,6 @@ fn fmt_short(total: u64) -> String {
 
 fn render(state: State, notice: Option<&str>) {
     let mut out = io::stdout().lock();
-    let questions = if state.count == 1 {
-        "question"
-    } else {
-        "questions"
-    };
     let status = if state.running { "running" } else { "paused" };
     let rate = state
         .rate_per_hour()
@@ -135,6 +146,8 @@ fn render(state: State, notice: Option<&str>) {
         .avg_per_question()
         .map(|a| format!("{}/q", fmt_short(a)))
         .unwrap_or_else(|| "—".to_string());
+    let questions = if state.count == 1 { "question" } else { "questions" };
+
     let _ = write!(
         out,
         "\x1B[2J\x1B[Hquestion timer\n\n  {}\n  {} {questions} · {status}\n\n  {rate} · {avg}\n",
@@ -146,15 +159,14 @@ fn render(state: State, notice: Option<&str>) {
     }
     let _ = write!(
         out,
-        "\n  enter +1 · p pause · u undo · r time · c count · x all · q quit\n> ",
+        "\n  enter +1 · p pause · u undo · r time · c count · x all · q quit\n> "
     );
     let _ = out.flush();
 }
 
-/// Returns `(quit, notice)`.
+/// Returns `true` to quit.
 fn apply(cmd: &str, state: &mut State) -> (bool, Option<String>) {
     match cmd.trim().to_lowercase().as_str() {
-        "q" | "quit" | "exit" => (true, None),
         "" | "a" | "+" | "add" => {
             state.count = state.count.saturating_add(1);
             (false, None)
@@ -180,6 +192,7 @@ fn apply(cmd: &str, state: &mut State) -> (bool, Option<String>) {
             state.count = 0;
             (false, None)
         }
+        "q" | "quit" | "exit" => (true, None),
         "h" | "help" | "?" => (false, None),
         other => (false, Some(format!("unknown: \"{other}\""))),
     }
@@ -201,6 +214,8 @@ fn main() {
                 Err(_) => break,
             }
         }
+        // EOF (e.g. piped input ends / Ctrl-D): stop the timer loop.
+        let _ = tx.send("q".to_string());
     });
 
     let mut last = Instant::now();
@@ -249,7 +264,16 @@ fn main() {
 
         if quit {
             save(state);
-            return;
+            let mut out = io::stdout().lock();
+            let _ = writeln!(
+                out,
+                "\n stopped  {} · {} {}\n",
+                fmt_hms(state.elapsed),
+                state.count,
+                if state.count == 1 { "question" } else { "questions" },
+            );
+            let _ = out.flush();
+            break;
         }
 
         // Expire transient notices.
