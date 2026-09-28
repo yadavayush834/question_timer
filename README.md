@@ -1,6 +1,6 @@
 # Question Timer
 
-A minimal Rust website for tracking elapsed study time and completed questions.
+A minimal pure-Rust terminal app for tracking elapsed study time and completed questions. No HTML, no CSS, no JS — just `cargo run`.
 
 ## Run
 
@@ -10,12 +10,24 @@ Install Rust, then from this folder run:
 cargo run
 ```
 
-Open `http://127.0.0.1:3000` in a browser.
+## Controls
 
-To validate the project without starting the server, run `cargo check`.
+Type a key + Enter:
 
-The timer and question count are stored in browser `localStorage`, so refreshing the page keeps the session. `Reset timer` only resets elapsed time; the question count remains intact.
+| Key | Action |
+| --- | ------ |
+| `enter` / `a` | +1 question |
+| `u` | undo (-1) |
+| `p` | pause / resume |
+| `r` | reset timer (keeps count) |
+| `c` | reset count (keeps timer) |
+| `x` | reset everything |
+| `q` | save + quit |
+
+The screen also shows questions/hour and average time per question.
+
+State is saved to disk (`$XDG_STATE_HOME/question_timer/state`, falling back to `~/.local/state/...`), so quitting and restarting resumes the session. While the timer is running, wall-clock time between sessions counts too.
 
 ## Project shape
 
-The server and page are written in Rust. The page is served directly from the binary, with no frontend framework or external assets.
+Single file (`src/main.rs`), standard library only — zero dependencies.
