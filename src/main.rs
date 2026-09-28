@@ -67,13 +67,19 @@ fn load() -> State {
         running: true,
     };
     let raw = fs::read_to_string(state_path()).unwrap_or_default();
-    if raw.trim().is_empty() {
-        return fallback;
-    }
     let mut it = raw.split_whitespace();
     let elapsed: u64 = it.next().and_then(|s| s.parse().ok()).unwrap_or(0);
     let count: u64 = it.next().and_then(|s| s.parse().ok()).unwrap_or(0);
     let running: bool = it.next().map(|s| s == "1").unwrap_or(true);
+    let saved_at: u64 = it.next().and_then(|s| s.parse().ok()).unwrap_or_else(now_unix);
+
+    // Mirror the old localStorage behavior: time kept passing while away.
+    let mut elapsed = elapsed;
+    if running {
+        elapsed = elapsed.saturating_add(now_unix().saturating_sub(saved_at));
+    } else if raw.trim().is_empty() {
+        return fallback;
+    }
     State {
         elapsed,
         count,
