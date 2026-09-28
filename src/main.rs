@@ -2,10 +2,12 @@
 //!
 //! No HTML, no CSS, no JS, no web server, no external crates.
 
+use std::fs;
 use std::io::{self, BufRead, Write};
+use std::path::PathBuf;
 use std::sync::mpsc;
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, Copy)]
 struct State {
@@ -30,6 +32,70 @@ impl State {
             None
         }
     }
+}
+
+fn now_unix() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+fn state_path() -> PathBuf {
+    if let Ok(dir) = std::env::var("XDG_STATE_HOME") {
+        if !dir.is_empty() {
+            return PathBuf::from(dir).join("question_timer").join("state");
+        }
+    }
+    if let Ok(home) = std::env::var("HOME") {
+        if !home.is_empty() {
+            return PathBuf::from(home)
+                .join(".local")
+                .join("state")
+                .join("question_timer")
+                .join("state");
+        }
+    }
+    PathBuf::from(".question_timer_state")
+}
+
+/// On-disk format: `elapsed count running saved_at` (all integers).
+fn load() -> State {
+    let fallback = State {
+        elapsed: 0,
+        count: 0,
+        running: true,
+    };
+    let raw = fs::read_to_string(state_path()).unwrap_or_default();
+    if raw.trim().is_empty() {
+        return fallback;
+    }
+    let mut it = raw.split_whitespace();
+    let elapsed: u64 = it.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+    let count: u64 = it.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+    let running: bool = it.next().map(|s| s == "1").unwrap_or(true);
+    State {
+        elapsed,
+        count,
+        running,
+    }
+}
+
+fn save(state: State) {
+    let path = state_path();
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            let _ = fs::create_dir_all(parent);
+        }
+    }
+    let content = format!(
+        "{} {} {} {}\n",
+        state.elapsed,
+        state.count,
+        u8::from(state.running),
+        now_unix()
+    );
+    let _ = fs::write(&path, content);
 }
 
 fn fmt_hms(total: u64) -> String {
@@ -129,11 +195,7 @@ fn main() {
         }
     });
 
-    let mut state = State {
-        elapsed: 0,
-        count: 0,
-        running: true,
-    };
+    let mut state = load();
     let mut notice: Option<(String, Instant)> = None;
     render(state, None);
     loop {
@@ -145,6 +207,7 @@ fn main() {
                 None => notice = None,
             }
             if quit {
+                save(state);
                 return;
             }
         }
