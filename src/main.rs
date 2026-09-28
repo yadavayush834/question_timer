@@ -14,8 +14,37 @@ struct State {
     running: bool,
 }
 
+impl State {
+    fn rate_per_hour(&self) -> Option<f64> {
+        if self.elapsed > 0 && self.count > 0 {
+            Some(self.count as f64 * 3600.0 / self.elapsed as f64)
+        } else {
+            None
+        }
+    }
+
+    fn avg_per_question(&self) -> Option<u64> {
+        if self.count > 0 {
+            Some(self.elapsed / self.count)
+        } else {
+            None
+        }
+    }
+}
+
 fn fmt_hms(total: u64) -> String {
     format!("{:02}:{:02}:{:02}", total / 3600, total % 3600 / 60, total % 60)
+}
+
+/// Compact duration: `48s`, `4m48s`, `1h05m`.
+fn fmt_short(total: u64) -> String {
+    if total < 60 {
+        format!("{total}s")
+    } else if total < 3600 {
+        format!("{}m{:02}s", total / 60, total % 60)
+    } else {
+        format!("{}h{:02}m", total / 3600, total % 3600 / 60)
+    }
 }
 
 fn render(state: State) {
@@ -26,9 +55,17 @@ fn render(state: State) {
         "questions"
     };
     let status = if state.running { "running" } else { "paused" };
+    let rate = state
+        .rate_per_hour()
+        .map(|r| format!("{r:.1}/hr"))
+        .unwrap_or_else(|| "—".to_string());
+    let avg = state
+        .avg_per_question()
+        .map(|a| format!("{}/q", fmt_short(a)))
+        .unwrap_or_else(|| "—".to_string());
     let _ = write!(
         out,
-        "\x1B[2J\x1B[Hquestion timer\n\n  {}\n  {} {questions} · {status}\n\n  enter +1 · p pause · u undo · r time · c count · x all · q quit\n> ",
+        "\x1B[2J\x1B[Hquestion timer\n\n  {}\n  {} {questions} · {status}\n\n  {rate} · {avg}\n\n  enter +1 · p pause · u undo · r time · c count · x all · q quit\n> ",
         fmt_hms(state.elapsed),
         state.count,
     );
