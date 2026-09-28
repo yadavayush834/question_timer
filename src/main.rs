@@ -186,6 +186,8 @@ fn apply(cmd: &str, state: &mut State) -> (bool, Option<String>) {
 }
 
 fn main() {
+    let mut state = load();
+
     let (tx, rx) = mpsc::channel::<String>();
     thread::spawn(move || {
         let stdin = io::stdin();
@@ -201,30 +203,71 @@ fn main() {
         }
     });
 
-    let mut state = load();
+    let mut last = Instant::now();
+    let mut frac = Duration::ZERO;
+    let mut last_rendered_sec = u64::MAX;
+    let mut last_save = Instant::now();
     let mut notice: Option<(String, Instant)> = None;
-    render(state, None);
+    let mut dirty = true;
+
     loop {
-        thread::sleep(Duration::from_secs(1));
+        thread::sleep(Duration::from_millis(200));
+
+        // Advance the clock by real elapsed time, keeping sub-second carry.
+        let now = Instant::now();
+        frac += now.duration_since(last);
+        last = now;
+        if state.running {
+            while frac >= Duration::from_secs(1) {
+                state.elapsed = state.elapsed.saturating_add(1);
+                frac -= Duration::from_secs(1);
+            }
+        } else {
+            frac = Duration::ZERO;
+        }
+
+        // Drain all pending commands.
+        let mut quit = false;
         for cmd in rx.try_iter() {
-            let (quit, msg) = apply(&cmd, &mut state);
+            let (q, msg) = apply(&cmd, &mut state);
             match msg {
                 Some(m) => notice = Some((m, Instant::now())),
-                None => notice = None,
+                None => {
+                    notice = None;
+                    dirty = true;
+                }
             }
-            if quit {
-                save(state);
-                return;
+            if q {
+                quit = true;
+                break;
             }
+            // A time-affecting command restarts the sub-second carry
+            // so the next tick is a full second away.
+            frac = Duration::ZERO;
+            dirty = true;
         }
+
+        if quit {
+            save(state);
+            return;
+        }
+
+        // Expire transient notices.
         if let Some((_, at)) = &notice {
             if at.elapsed() > Duration::from_secs(4) {
                 notice = None;
+                dirty = true;
             }
         }
-        if state.running {
-            state.elapsed = state.elapsed.saturating_add(1);
+
+        if state.elapsed != last_rendered_sec || dirty {
+            render(state, notice.as_ref().map(|(m, _)| m.as_str()));
+            last_rendered_sec = state.elapsed;
+            dirty = false;
         }
-        render(state, notice.as_ref().map(|(m, _)| m.as_str()));
+        if last_save.elapsed() > Duration::from_secs(5) {
+            save(state);
+            last_save = Instant::now();
+        }
     }
 }
