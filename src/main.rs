@@ -11,12 +11,13 @@ fn fmt_hms(total: u64) -> String {
     format!("{:02}:{:02}:{:02}", total / 3600, total % 3600 / 60, total % 60)
 }
 
-fn render(elapsed: u64, count: u64) {
+fn render(elapsed: u64, count: u64, running: bool) {
     let mut out = io::stdout().lock();
     let questions = if count == 1 { "question" } else { "questions" };
+    let status = if running { "running" } else { "paused" };
     let _ = write!(
         out,
-        "\x1B[2J\x1B[Hquestion timer\n\n  {}\n  {} {questions}\n\n  enter +1 · u undo · q quit\n> ",
+        "\x1B[2J\x1B[Hquestion timer\n\n  {}\n  {} {questions} · {status}\n\n  enter +1 · p pause · u undo · q quit\n> ",
         fmt_hms(elapsed),
         count,
     );
@@ -41,7 +42,8 @@ fn main() {
 
     let mut elapsed: u64 = 0;
     let mut count: u64 = 0;
-    render(elapsed, count);
+    let mut running = true;
+    render(elapsed, count, running);
     loop {
         thread::sleep(Duration::from_secs(1));
         for cmd in rx.try_iter() {
@@ -49,10 +51,13 @@ fn main() {
                 "q" => return,
                 "" | "a" | "+" => count = count.saturating_add(1),
                 "u" | "-" => count = count.saturating_sub(1),
+                "p" => running = !running,
                 _ => {}
             }
         }
-        elapsed = elapsed.saturating_add(1);
-        render(elapsed, count);
+        if running {
+            elapsed = elapsed.saturating_add(1);
+        }
+        render(elapsed, count, running);
     }
 }
