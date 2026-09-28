@@ -5,7 +5,7 @@
 use std::io::{self, BufRead, Write};
 use std::sync::mpsc;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, Copy)]
 struct State {
@@ -47,7 +47,7 @@ fn fmt_short(total: u64) -> String {
     }
 }
 
-fn render(state: State) {
+fn render(state: State, notice: Option<&str>) {
     let mut out = io::stdout().lock();
     let questions = if state.count == 1 {
         "question"
@@ -65,43 +65,51 @@ fn render(state: State) {
         .unwrap_or_else(|| "—".to_string());
     let _ = write!(
         out,
-        "\x1B[2J\x1B[Hquestion timer\n\n  {}\n  {} {questions} · {status}\n\n  {rate} · {avg}\n\n  enter +1 · p pause · u undo · r time · c count · x all · q quit\n> ",
+        "\x1B[2J\x1B[Hquestion timer\n\n  {}\n  {} {questions} · {status}\n\n  {rate} · {avg}\n",
         fmt_hms(state.elapsed),
         state.count,
+    );
+    if let Some(msg) = notice {
+        let _ = writeln!(out, "\n  ! {msg}");
+    }
+    let _ = write!(
+        out,
+        "\n  enter +1 · p pause · u undo · r time · c count · x all · q quit\n> ",
     );
     let _ = out.flush();
 }
 
-/// Returns `true` to quit.
-fn apply(cmd: &str, state: &mut State) -> bool {
+/// Returns `(quit, notice)`.
+fn apply(cmd: &str, state: &mut State) -> (bool, Option<String>) {
     match cmd.trim().to_lowercase().as_str() {
-        "q" | "quit" | "exit" => true,
+        "q" | "quit" | "exit" => (true, None),
         "" | "a" | "+" | "add" => {
             state.count = state.count.saturating_add(1);
-            false
+            (false, None)
         }
         "u" | "-" | "undo" => {
             state.count = state.count.saturating_sub(1);
-            false
+            (false, None)
         }
         "p" | "pause" | "resume" => {
             state.running = !state.running;
-            false
+            (false, None)
         }
         "r" | "reset" => {
             state.elapsed = 0;
-            false
+            (false, None)
         }
         "c" => {
             state.count = 0;
-            false
+            (false, None)
         }
         "x" | "clear" => {
             state.elapsed = 0;
             state.count = 0;
-            false
+            (false, None)
         }
-        _ => false,
+        "h" | "help" | "?" => (false, None),
+        other => (false, Some(format!("unknown: \"{other}\""))),
     }
 }
 
@@ -126,17 +134,28 @@ fn main() {
         count: 0,
         running: true,
     };
-    render(state);
+    let mut notice: Option<(String, Instant)> = None;
+    render(state, None);
     loop {
         thread::sleep(Duration::from_secs(1));
         for cmd in rx.try_iter() {
-            if apply(&cmd, &mut state) {
+            let (quit, msg) = apply(&cmd, &mut state);
+            match msg {
+                Some(m) => notice = Some((m, Instant::now())),
+                None => notice = None,
+            }
+            if quit {
                 return;
+            }
+        }
+        if let Some((_, at)) = &notice {
+            if at.elapsed() > Duration::from_secs(4) {
+                notice = None;
             }
         }
         if state.running {
             state.elapsed = state.elapsed.saturating_add(1);
         }
-        render(state);
+        render(state, notice.as_ref().map(|(m, _)| m.as_str()));
     }
 }
